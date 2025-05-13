@@ -2,8 +2,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <limits.h>
 #include "scaffold_model.h"
 #include "../database/application/orm.h"
+#include "../utils/path_utils.h"
 
 #define MAX_ATTRS 100
 #define MAX_ATTR_NAME 50
@@ -27,8 +29,18 @@ void generate_model_code(ScaffoldModel *model) {
     char* lowercase_name = to_lowercase(model->name);
     
     // Create directory for the resource if it doesn't exist
-    char resource_dir[256];
-    snprintf(resource_dir, sizeof(resource_dir), "/Users/somak/cerver/scaffolded_resources/%s", lowercase_name);
+    char resource_dir[PATH_MAX];
+    char scaffolded_path[PATH_MAX];
+    
+    // Combine project root with scaffolded_resources path
+    if (join_project_path(scaffolded_path, sizeof(scaffolded_path), "scaffolded_resources") != 0) {
+        fprintf(stderr, "Error creating path to scaffolded_resources\n");
+        free(lowercase_name);
+        return;
+    }
+    
+    // Create the full resource directory path
+    snprintf(resource_dir, sizeof(resource_dir), "%s/%s", scaffolded_path, lowercase_name);
     
     // Create the directory (mkdir -p equivalent)
     char mkdir_cmd[512];

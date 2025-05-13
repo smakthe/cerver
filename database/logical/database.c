@@ -6,6 +6,8 @@
 #include <unistd.h> // For ftruncate, remove, rename, fsync (optional)
 #include <pthread.h>
 #include <errno.h>  // For perror()
+#include <limits.h> // For PATH_MAX
+#include "../utils/path_utils.h"
 #include "database.h"
 
 // --- Database & Table Creation/Deletion ---
@@ -147,7 +149,16 @@ Table *create_table(Database *db, const char *table_name, char **columns, int co
 
     // Create directory path for the resource if it doesn't exist
     char resource_dir[FILENAME_BUF_SIZE];
-    snprintf(resource_dir, sizeof(resource_dir), "/Users/somak/cerver/scaffolded_resources/%s", lowercase_name);
+    char scaffolded_path[FILENAME_BUF_SIZE];
+    
+    // Combine project root with scaffolded_resources path
+    if (join_project_path(scaffolded_path, sizeof(scaffolded_path), "scaffolded_resources") != 0) {
+        fprintf(stderr, "Error creating path to scaffolded_resources\n");
+        return NULL;
+    }
+    
+    // Create the full resource directory path
+    snprintf(resource_dir, sizeof(resource_dir), "%s/%s", scaffolded_path, lowercase_name);
     
     // Create the directory (mkdir -p equivalent)
     char mkdir_cmd[FILENAME_BUF_SIZE * 2];

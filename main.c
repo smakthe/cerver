@@ -1,15 +1,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <pthread.h>
+#include <ctype.h>
 #include <signal.h>
-#include "server/http_server.h"
+#include <limits.h>  // For PATH_MAX
+#include "models/model_setup.h"
 #include "models/scaffold_model.h"
 #include "controllers/scaffold_controller.h"
 #include "routes/scaffold_routes.h"
+#include "server/http_server.h"
 #include "database/application/orm.h"
 #include "database/logical/database.h"
-#include "models/model_setup.h"
+#include "utils/path_utils.h"
 
 volatile sig_atomic_t running = 1;
 
@@ -135,8 +137,17 @@ int main() {
         scaffold_resource(resource_name, attributes, types, attr_count);
         
         // Resource creation directory path
-        char resource_dir[512];
-        snprintf(resource_dir, sizeof(resource_dir), "/Users/somak/cerver/scaffolded_resources/%s", lowercase_resource);
+        char resource_dir[PATH_MAX];
+        char scaffolded_path[PATH_MAX];
+        
+        // Combine project root with scaffolded_resources path
+        if (join_project_path(scaffolded_path, sizeof(scaffolded_path), "scaffolded_resources") != 0) {
+            fprintf(stderr, "Error creating path to scaffolded_resources\n");
+            exit(1);
+        }
+        
+        // Create the full resource directory path
+        snprintf(resource_dir, sizeof(resource_dir), "%s/%s", scaffolded_path, lowercase_resource);
         
         printf("\nResource '%s' has been successfully created!\n", resource_name);
         printf("Files created in: %s\n", resource_dir);
