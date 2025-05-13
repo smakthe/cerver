@@ -101,10 +101,10 @@ Enter the resource attributes in the format (name:type,another_name:type,...): t
 Creating resource 'Book' with 4 attributes...
 
 Resource 'Book' has been successfully created!
-Files created in: /Users/somak/cerver/scaffolded_resources/book
-  - /Users/somak/cerver/scaffolded_resources/book/book.c
-  - /Users/somak/cerver/scaffolded_resources/book/book_controller.c
-  - /Users/somak/cerver/scaffolded_resources/book/book_routes.c
+Files created in: cerver/scaffolded_resources/book
+  - cerver/scaffolded_resources/book/book.c
+  - cerver/scaffolded_resources/book/book_controller.c
+  - cerver/scaffolded_resources/book/book_routes.c
 
 API endpoints available:
   GET    /book      - List all books
@@ -116,7 +116,7 @@ API endpoints available:
 
 ### Generated Files
 
-All files for a resource are created in `/Users/somak/cerver/scaffolded_resources/{resource_name}/`:
+All files for a resource are created in `cerver/scaffolded_resources/{resource_name}/`:
 
 1. **Model File** (`{resource_name}.c`):
    - Contains the struct definition based on your attributes
