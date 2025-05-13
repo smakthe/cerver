@@ -30,6 +30,9 @@ cerver/
 ├── routes/
 │   ├── scaffold_routes.c         # Route code generator
 │   └── scaffold_routes.h
+├── utils/
+│   ├── path_utils.c              # Path utilities for portable path handling
+│   └── path_utils.h
 ├── server/
 │   ├── http_server.c             # HTTP server implementation
 │   └── http_server.h
