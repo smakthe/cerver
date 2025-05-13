@@ -1,0 +1,5 @@
+scaffolded_resources/
+*.dat
+*.o
+*.DS_Store
+cerver
