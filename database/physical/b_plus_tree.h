@@ -51,6 +51,13 @@ void delete_key(BPlusTree *tree, int key);
 // Utility (Optional - for debugging or specific needs)
 void print_tree(BPlusTree *tree);           // Prints a representation of the tree structure (for debugging)
 
+// Scan
+// Collects all keys stored in the tree by traversing the leaf linked list.
+// Returns a malloc'd int array sorted in ascending order.
+// Sets *count to the number of keys found. Caller must free the returned array.
+// Returns NULL if the tree is empty or allocation fails.
+int* collect_all_keys(BPlusTree *tree, int *count);
+
 // Cleanup
 void free_tree_nodes(BPlusTreeNode *node);  // Recursively frees memory allocated for nodes
 void destroy_tree(BPlusTree *tree);         // Frees all memory associated with the tree

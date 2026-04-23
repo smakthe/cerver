@@ -752,8 +752,27 @@ void compact_table(Table *table) {
     printf("Compacting table '%s'...\n", table->name);
 
     // --- Setup: Temp file and new index ---
+
+    // Build the correct directory path the same way create_table does
+    char lowercase_name[FILENAME_BUF_SIZE];
+    strncpy(lowercase_name, table->name, FILENAME_BUF_SIZE - 1);
+    lowercase_name[FILENAME_BUF_SIZE - 1] = '\0';
+    for (int i = 0; lowercase_name[i]; i++) {
+        lowercase_name[i] = tolower((unsigned char)lowercase_name[i]);
+    }
+
+    char scaffolded_path[FILENAME_BUF_SIZE];
+    if (join_project_path(scaffolded_path, sizeof(scaffolded_path), "scaffolded_resources") != 0) {
+        fprintf(stderr, "Error: Could not build scaffolded_resources path during compaction.\n");
+        pthread_mutex_unlock(&table->lock);
+        return;
+    }
+
+    char resource_dir[FILENAME_BUF_SIZE];
+    snprintf(resource_dir, sizeof(resource_dir), "%s/%s", scaffolded_path, lowercase_name);
+
     char temp_filename[FILENAME_BUF_SIZE];
-    snprintf(temp_filename, sizeof(temp_filename), "%s.tmp", table->name);
+    snprintf(temp_filename, sizeof(temp_filename), "%s/%s.tmp", resource_dir, lowercase_name);
 
     // Open temporary file for writing binary data
     FILE *temp_file = fopen(temp_filename, "wb");
@@ -833,7 +852,7 @@ void compact_table(Table *table) {
 
     // Replace the old data file with the compacted temporary file
     char old_filename[FILENAME_BUF_SIZE];
-    snprintf(old_filename, sizeof(old_filename), "%s.dat", table->name);
+    snprintf(old_filename, sizeof(old_filename), "%s/%s.dat", resource_dir, lowercase_name);
     if (remove(old_filename) != 0) {
         // If remove fails, the original file might still exist.
         perror("Failed to remove old data file during compaction");

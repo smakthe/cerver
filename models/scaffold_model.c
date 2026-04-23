@@ -6,6 +6,7 @@
 #include "scaffold_model.h"
 #include "../database/application/orm.h"
 #include "../utils/path_utils.h"
+#include "../utils/type_map.h"
 
 #define MAX_ATTRS 100
 #define MAX_ATTR_NAME 50
@@ -70,7 +71,9 @@ void generate_model_code(ScaffoldModel *model) {
     // Define the model structure (for in-memory use)
     fprintf(model_file, "typedef struct {\n");
     for (int i = 0; i < model->attr_count; i++) {
-        fprintf(model_file, "    %s %s;\n", model->attrs[i].type, model->attrs[i].name);
+        char decl[512];
+        map_to_c_declaration(model->attrs[i].name, model->attrs[i].type, decl, sizeof(decl));
+        fprintf(model_file, "    %s;\n", decl);
     }
     fprintf(model_file, "} %s;\n\n", model->name);
 
@@ -93,13 +96,27 @@ void generate_model_code(ScaffoldModel *model) {
     
     fprintf(model_file, "    // Set field values\n");
     for (int i = 0; i < model->attr_count; i++) {
-        // Convert int fields to string for set_instance_field
-        if (strcmp(model->attrs[i].type, "int") == 0) {
-            fprintf(model_file, "    char %s_str[32];\n", model->attrs[i].name);
-            fprintf(model_file, "    snprintf(%s_str, sizeof(%s_str), \"%%d\", new_%s->%s);\n", model->attrs[i].name, model->attrs[i].name, model->name, model->attrs[i].name);
-            fprintf(model_file, "    set_instance_field(instance, %d, %s_str);\n", i, model->attrs[i].name);
+        if (!is_array_type(model->attrs[i].type)) {
+            // Scalar type: needs snprintf conversion to string
+            if (strcmp(model->attrs[i].type, "float") == 0 ||
+                strcmp(model->attrs[i].type, "double") == 0) {
+                fprintf(model_file, "    char %s_str[64];\n", model->attrs[i].name);
+                fprintf(model_file, "    snprintf(%s_str, sizeof(%s_str), \"%%f\", new_%s->%s);\n",
+                        model->attrs[i].name, model->attrs[i].name,
+                        model->name, model->attrs[i].name);
+            } else {
+                // int, bool, char
+                fprintf(model_file, "    char %s_str[32];\n", model->attrs[i].name);
+                fprintf(model_file, "    snprintf(%s_str, sizeof(%s_str), \"%%d\", new_%s->%s);\n",
+                        model->attrs[i].name, model->attrs[i].name,
+                        model->name, model->attrs[i].name);
+            }
+            fprintf(model_file, "    set_instance_field(instance, %d, %s_str);\n",
+                    i, model->attrs[i].name);
         } else {
-            fprintf(model_file, "    set_instance_field(instance, %d, new_%s->%s);\n", i, model->name, model->attrs[i].name);
+            // Array type (string, text, date): already a char array, pass directly
+            fprintf(model_file, "    set_instance_field(instance, %d, new_%s->%s);\n",
+                    i, model->name, model->attrs[i].name);
         }
     }
     
@@ -128,12 +145,28 @@ void generate_model_code(ScaffoldModel *model) {
     
     fprintf(model_file, "    // Extract field values\n");
     for (int i = 0; i < model->attr_count; i++) {
-        if (strcmp(model->attrs[i].type, "int") == 0) {
-            fprintf(model_file, "    const char *val_%s = instance->data[%d];\n", model->attrs[i].name, i);
-            fprintf(model_file, "    out_%s->%s = val_%s ? atoi(val_%s) : 0;\n", model->name, model->attrs[i].name, model->attrs[i].name, model->attrs[i].name);
+        fprintf(model_file, "    const char *val_%s = instance->data[%d];\n",
+                model->attrs[i].name, i);
+
+        if (!is_array_type(model->attrs[i].type)) {
+            if (strcmp(model->attrs[i].type, "float") == 0 ||
+                strcmp(model->attrs[i].type, "double") == 0) {
+                fprintf(model_file, "    out_%s->%s = val_%s ? atof(val_%s) : 0.0;\n",
+                        model->name, model->attrs[i].name,
+                        model->attrs[i].name, model->attrs[i].name);
+            } else {
+                // int, bool, char
+                fprintf(model_file, "    out_%s->%s = val_%s ? atoi(val_%s) : 0;\n",
+                        model->name, model->attrs[i].name,
+                        model->attrs[i].name, model->attrs[i].name);
+            }
         } else {
-            fprintf(model_file, "    const char *val_%s = instance->data[%d];\n", model->attrs[i].name, i);
-            fprintf(model_file, "    if (val_%s) strncpy(out_%s->%s, val_%s, sizeof(out_%s->%s)-1);\n", model->attrs[i].name, model->name, model->attrs[i].name, model->attrs[i].name, model->name, model->attrs[i].name);
+            // Array type: copy string directly
+            fprintf(model_file, "    if (val_%s) strncpy(out_%s->%s, val_%s, sizeof(out_%s->%s) - 1);\n",
+                    model->attrs[i].name,
+                    model->name, model->attrs[i].name,
+                    model->attrs[i].name,
+                    model->name, model->attrs[i].name);
         }
     }
     
@@ -160,12 +193,24 @@ void generate_model_code(ScaffoldModel *model) {
     
     fprintf(model_file, "    // Update field values\n");
     for (int i = 0; i < model->attr_count; i++) {
-        if (strcmp(model->attrs[i].type, "int") == 0) {
-            fprintf(model_file, "    char %s_str[32];\n", model->attrs[i].name);
-            fprintf(model_file, "    snprintf(%s_str, sizeof(%s_str), \"%%d\", updated_%s->%s);\n", model->attrs[i].name, model->attrs[i].name, model->name, model->attrs[i].name);
-            fprintf(model_file, "    set_instance_field(instance, %d, %s_str);\n", i, model->attrs[i].name);
+        if (!is_array_type(model->attrs[i].type)) {
+            if (strcmp(model->attrs[i].type, "float") == 0 ||
+                strcmp(model->attrs[i].type, "double") == 0) {
+                fprintf(model_file, "    char %s_str[64];\n", model->attrs[i].name);
+                fprintf(model_file, "    snprintf(%s_str, sizeof(%s_str), \"%%f\", updated_%s->%s);\n",
+                        model->attrs[i].name, model->attrs[i].name,
+                        model->name, model->attrs[i].name);
+            } else {
+                fprintf(model_file, "    char %s_str[32];\n", model->attrs[i].name);
+                fprintf(model_file, "    snprintf(%s_str, sizeof(%s_str), \"%%d\", updated_%s->%s);\n",
+                        model->attrs[i].name, model->attrs[i].name,
+                        model->name, model->attrs[i].name);
+            }
+            fprintf(model_file, "    set_instance_field(instance, %d, %s_str);\n",
+                    i, model->attrs[i].name);
         } else {
-            fprintf(model_file, "    set_instance_field(instance, %d, updated_%s->%s);\n", i, model->name, model->attrs[i].name);
+            fprintf(model_file, "    set_instance_field(instance, %d, updated_%s->%s);\n",
+                    i, model->name, model->attrs[i].name);
         }
     }
     
@@ -198,48 +243,63 @@ void generate_model_code(ScaffoldModel *model) {
     fprintf(model_file, "    return result;\n");
     fprintf(model_file, "}\n\n");
 
-    // Helper function to get model schema
-    fprintf(model_file, "// Helper function to get the model schema from the ORM\n");
+    // Helper function to get model schema — looks up the central registry,
+    // never calls define_model() again (avoids duplicate table registration).
+    fprintf(model_file, "// Returns the pre-registered schema for this model from the ORM registry.\n");
     fprintf(model_file, "Model *get_model_schema(const char *model_name) {\n");
-    fprintf(model_file, "    extern Database *global_db;\n");
-    fprintf(model_file, "    if (!global_db) {\n");
-    fprintf(model_file, "        fprintf(stderr, \"Error: Database not initialized\\n\");\n");
-    fprintf(model_file, "        return NULL;\n");
-    fprintf(model_file, "    }\n\n");
-    
-    fprintf(model_file, "    // This is a simplified placeholder\n");
-    fprintf(model_file, "    // In a real implementation, this would look up the model in a model registry\n");
-    fprintf(model_file, "    // For now, create a model definition on the fly\n");
-    fprintf(model_file, "    static Field fields[%d];\n", model->attr_count);
-    fprintf(model_file, "    static int fields_initialized = 0;\n\n");
-    
-    fprintf(model_file, "    if (!fields_initialized) {\n");
-    for (int i = 0; i < model->attr_count; i++) {
-        fprintf(model_file, "        fields[%d].name = \"%s\";\n", i, model->attrs[i].name);
-        fprintf(model_file, "        fields[%d].type = \"%s\";\n", i, model->attrs[i].type);
-        // Make the first field the primary key
-        if (i == 0) {
-            fprintf(model_file, "        fields[%d].is_primary = 1;\n", i);
-        } else {
-            fprintf(model_file, "        fields[%d].is_primary = 0;\n", i);
-        }
-        fprintf(model_file, "        fields[%d].is_foreign_key = 0;\n", i);
-        fprintf(model_file, "        fields[%d].referenced_table = NULL;\n", i);
-        fprintf(model_file, "        fields[%d].referenced_column = NULL;\n", i);
-    }
-    fprintf(model_file, "        fields_initialized = 1;\n");
-    fprintf(model_file, "    }\n\n");
-    
-    fprintf(model_file, "    // Define the model with the ORM\n");
-    fprintf(model_file, "    static Model *model = NULL;\n");
-    fprintf(model_file, "    if (!model) {\n");
-    fprintf(model_file, "        model = define_model(\"%s\", fields, %d, NULL, 0);\n", model->name, model->attr_count);
-    fprintf(model_file, "    }\n\n");
-    
-    fprintf(model_file, "    return model;\n");
+    fprintf(model_file, "    extern Model* find_model_by_name(const char* name);\n");
+    fprintf(model_file, "    return find_model_by_name(model_name);\n");
     fprintf(model_file, "}\n");
 
     fclose(model_file);
+
+    // Generate the model header file
+    FILE *header_file;
+    char header_filename[512];
+    snprintf(header_filename, sizeof(header_filename), "%s/%s.h", resource_dir, lowercase_name);
+
+    header_file = fopen(header_filename, "w");
+    if (header_file == NULL) {
+        printf("Error opening file for model header generation\n");
+        free(lowercase_name);
+        return;
+    }
+
+    printf("Creating model header file: %s\n", header_filename);
+
+    // Include guard
+    fprintf(header_file, "#ifndef %s_H\n", model->name);
+    fprintf(header_file, "#define %s_H\n\n", model->name);
+
+    fprintf(header_file, "#include <stdio.h>\n");
+    fprintf(header_file, "#include <stdlib.h>\n");
+    fprintf(header_file, "#include <string.h>\n");
+    fprintf(header_file, "#include \"../../../database/application/orm.h\"\n\n");
+
+    // Emit the struct definition in the header
+    fprintf(header_file, "typedef struct {\n");
+    for (int i = 0; i < model->attr_count; i++) {
+        char decl[512];
+        map_to_c_declaration(model->attrs[i].name, model->attrs[i].type, decl, sizeof(decl));
+        fprintf(header_file, "    %s;\n", decl);
+    }
+    fprintf(header_file, "} %s;\n\n", model->name);
+
+    // CRUD function prototypes
+    fprintf(header_file, "int create_%s(%s *new_%s);\n",
+            model->name, model->name, model->name);
+    fprintf(header_file, "int view_%s(int id, %s *out_%s);\n",
+            model->name, model->name, model->name);
+    fprintf(header_file, "int update_%s(int id, %s *updated_%s);\n",
+            model->name, model->name, model->name);
+    fprintf(header_file, "int destroy_%s(int id);\n",
+            model->name);
+    fprintf(header_file, "Model *get_model_schema(const char *model_name);\n\n");
+
+    fprintf(header_file, "#endif /* %s_H */\n", model->name);
+
+    fclose(header_file);
+
     printf("Model code generated for %s (integrated with database).\n", model->name);
 }
 

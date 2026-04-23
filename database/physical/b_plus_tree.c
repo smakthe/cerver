@@ -8,13 +8,10 @@ BPlusTreeNode *find_leaf_node(BPlusTreeNode *node, int key);
 void insert_into_leaf(BPlusTreeNode *leaf, int key, long file_offset);
 void insert_into_parent(BPlusTree* tree, BPlusTreeNode *left, int key, BPlusTreeNode *right);
 void insert_into_node(BPlusTreeNode *node, int index, int key, BPlusTreeNode *right_child);
-// void split_leaf_node(BPlusTree* tree, BPlusTreeNode *leaf); // Integrated into insert_key
-// void split_internal_node(BPlusTree* tree, BPlusTreeNode *node); // Integrated into insert_into_parent
 void delete_entry(BPlusTree *tree, BPlusTreeNode *node, int key);
 void handle_underflow(BPlusTree *tree, BPlusTreeNode *node);
-// int get_neighbor_index(BPlusTreeNode *node); // Integrated into handle_underflow
-// void borrow_from_sibling(BPlusTreeNode *node, BPlusTreeNode *sibling, int neighbor_index, int is_predecessor); // Integrated
 void merge_nodes(BPlusTree *tree, BPlusTreeNode *left_node, BPlusTreeNode *right_node, int k_prime_index, int k_prime);
+static void fix_ancestor_separator(BPlusTreeNode *leaf, int old_key, int new_key);
 
 
 // --- Initialization ---
@@ -350,6 +347,28 @@ void insert_into_node(BPlusTreeNode *node, int index, int key, BPlusTreeNode *ri
     node->num_keys++; // Increment the key count
 }
 
+/**
+ * @brief Walks up the ancestor chain from a leaf and replaces the first
+ * occurrence of old_key as a separator with new_key.
+ * Called after deleting the minimum key of a leaf (index 0), because that
+ * key may have been pushed up as a separator during a prior split.
+ * @param leaf   The leaf node from which the key was just deleted.
+ * @param old_key The key that was deleted (the old minimum).
+ * @param new_key The new minimum key of the leaf after deletion.
+ */
+static void fix_ancestor_separator(BPlusTreeNode *leaf, int old_key, int new_key) {
+    BPlusTreeNode *node = leaf->parent;
+    while (node != NULL) {
+        for (int i = 0; i < node->num_keys; i++) {
+            if (node->keys[i] == old_key) {
+                node->keys[i] = new_key;
+                return; // Separators are unique per level; stop after first found
+            }
+        }
+        node = node->parent;
+    }
+    // Not found is not an error: the key may not have been promoted
+}
 
 // --- Deletion ---
 
@@ -424,6 +443,12 @@ void delete_entry(BPlusTree *tree, BPlusTreeNode *node, int key) {
         // This implementation focuses on leaf deletion triggering potential parent adjustments.
     }
     node->num_keys--; // Decrement the key count
+    
+    // If the deleted key was the minimum of this leaf (index 0), it may exist
+    // as a separator in an ancestor internal node. Update it to the new minimum.
+    if (node->is_leaf && index == 0 && node->num_keys > 0) {
+        fix_ancestor_separator(node, key, node->keys[0]);
+    }
 
     // --- Underflow Check and Handling ---
     // Check if the node has fallen below the minimum number of keys required
@@ -669,6 +694,52 @@ void free_tree_nodes(BPlusTreeNode *node) {
     }
     // Free the node itself
     free(node);
+}
+
+/**
+ * @brief Collects all keys from the B+ Tree by traversing the leaf linked list.
+ * Keys are returned in ascending order (leaves are kept sorted).
+ * @param tree Pointer to the BPlusTree.
+ * @param count Output parameter set to the number of keys found.
+ * @return Newly allocated int array of keys, or NULL if empty/error. Caller must free.
+ */
+int* collect_all_keys(BPlusTree *tree, int *count) {
+    *count = 0;
+    if (!tree || !tree->root) return NULL;
+
+    // Find the leftmost leaf by descending left-child pointers
+    BPlusTreeNode *leaf = tree->root;
+    while (!leaf->is_leaf) {
+        leaf = leaf->children[0];
+        if (!leaf) return NULL;
+    }
+
+    // First pass: count total keys across all leaves
+    int total = 0;
+    BPlusTreeNode *cur = leaf;
+    while (cur) {
+        total += cur->num_keys;
+        cur = cur->next;
+    }
+
+    if (total == 0) return NULL;
+
+    // Allocate result array
+    int *keys = malloc(total * sizeof(int));
+    if (!keys) return NULL;
+
+    // Second pass: collect keys in order
+    int idx = 0;
+    cur = leaf;
+    while (cur) {
+        for (int i = 0; i < cur->num_keys; i++) {
+            keys[idx++] = cur->keys[i];
+        }
+        cur = cur->next;
+    }
+
+    *count = total;
+    return keys;
 }
 
 /**

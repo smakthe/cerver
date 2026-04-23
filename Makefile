@@ -21,6 +21,7 @@ SRCS = $(wildcard $(SRC_DIR)/*.c) \
        $(wildcard $(CONTROLLERS_DIR)/*.c) \
        $(wildcard $(ROUTES_DIR)/*.c) \
        $(wildcard $(UTILS_DIR)/*.c) \
+       $(wildcard $(DATABASE_DIR)/*.c) \
        $(wildcard $(DB_APP_DIR)/*.c) \
        $(wildcard $(DB_LOGICAL_DIR)/*.c) \
        $(wildcard $(DB_PHYSICAL_DIR)/*.c)

@@ -17,29 +17,52 @@ typedef struct {
 static Route *routes = NULL;
 static int route_count = 0;
 
-// Compare function for string matching with wildcards
+// Compare function for string matching with wildcards and :id parameters.
+//
+// Supported pattern forms:
+//   /foo          exact match
+//   /foo/:id      matches /foo/123  (numeric id segment)
+//   /*            matches any single-segment path  e.g. /foo
+//   /*/*          matches any two-segment path     e.g. /foo/123
 int match_pattern(const char *pattern, const char *path) {
-    // Simple matching for now - exact match or pattern ends with :id
-    size_t pattern_len = strlen(pattern);
-    size_t path_len = strlen(path);
-    
-    // Check for exact match
-    if (strcmp(pattern, path) == 0) {
+    if (!pattern || !path) return 0;
+
+    // 1. Exact match
+    if (strcmp(pattern, path) == 0) return 1;
+
+    // 2. Wildcard: "/*"  — matches exactly one path segment, no trailing slash
+    //    e.g. pattern "/*" matches "/book" but NOT "/book/1"
+    if (strcmp(pattern, "/*") == 0) {
+        // Path must start with '/' and contain no further '/' after position 0
+        if (path[0] != '/') return 0;
+        const char *second_slash = strchr(path + 1, '/');
+        return (second_slash == NULL) ? 1 : 0;
+    }
+
+    // 3. Wildcard: "/*/*" — matches exactly two path segments
+    //    e.g. pattern "/*/*" matches "/book/1" but NOT "/book"
+    if (strcmp(pattern, "/*/*") == 0) {
+        if (path[0] != '/') return 0;
+        const char *second_slash = strchr(path + 1, '/');
+        if (!second_slash) return 0;              // only one segment
+        const char *third_slash = strchr(second_slash + 1, '/');
+        return (third_slash == NULL) ? 1 : 0;     // must be exactly two segments
+    }
+
+    // 4. Explicit /:id pattern  e.g. "/book/:id" matches "/book/42"
+    const char *param_pos = strstr(pattern, "/:id");
+    if (param_pos) {
+        size_t prefix_len = (size_t)(param_pos - pattern);
+        // prefix of path must match prefix of pattern
+        if (strncmp(pattern, path, prefix_len) != 0) return 0;
+        // next char in path must be '/'
+        if (path[prefix_len] != '/') return 0;
+        // segment after '/' must be a non-empty numeric string
+        const char *id_start = path + prefix_len + 1;
+        if (!isdigit((unsigned char)*id_start)) return 0;
         return 1;
     }
-    
-    // Check for pattern with parameter (e.g., "/users/:id")
-    const char *param_pos = strstr(pattern, "/:id");
-    if (param_pos && param_pos == pattern + pattern_len - 4) {
-        // Check if the path matches up to the parameter
-        size_t prefix_len = param_pos - pattern;
-        if (strncmp(pattern, path, prefix_len) == 0 && 
-            path[prefix_len] == '/' && 
-            isdigit(path[prefix_len + 1])) {
-            return 1;
-        }
-    }
-    
+
     return 0;
 }
 

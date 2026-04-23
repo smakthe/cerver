@@ -53,151 +53,156 @@ char* extract_request_body(HttpRequest *request) {
 
 // Handler for GET /<resource> (index action)
 void handle_index_route(HttpRequest *request, HttpResponse *response, const char *model_name) {
-    // Set response type to JSON
+    (void)request;
     strcpy(response->content_type, "application/json");
-    
-    // Build JSON prefix and suffix buffers
-    char *json_prefix = "{ \"status\": \"success\", \"data\": [";
-    char *json_suffix = "] }";
-    
-    // TODO: Call controller to get actual data
-    // For now, just respond with mock data
-    char json_data[1024];
-    snprintf(json_data, sizeof(json_data), "%s { \"id\": 1, \"name\": \"Sample %s\" } %s", 
-             json_prefix, model_name, json_suffix);
-             
-    response->body = strdup(json_data);
-    response->body_length = strlen(json_data);
-    
-    // Call the controller function
-    indx(model_name);
+
+    ControllerResult *result = indx(model_name);
+    if (result && result->success && result->data) {
+        response->body = strdup((char*)result->data);
+    } else {
+        strcpy(response->status, "500 Internal Server Error");
+        response->body = strdup("{\"error\":\"failed to retrieve resources\"}");
+    }
+    response->body_length = strlen(response->body);
+    if (result) free_controller_result(result);
 }
 
 // Handler for GET /<resource>/:id (view action)
 void handle_view_route(HttpRequest *request, HttpResponse *response, const char *model_name) {
     int id = parse_id_from_path(request->path);
+    strcpy(response->content_type, "application/json");
+
     if (id < 0) {
         strcpy(response->status, "400 Bad Request");
-        const char *error_msg = "{ \"status\": \"error\", \"message\": \"Invalid resource ID\" }";
-        response->body = strdup(error_msg);
-        response->body_length = strlen(error_msg);
-        strcpy(response->content_type, "application/json");
+        response->body = strdup("{\"error\":\"invalid resource ID\"}");
+        response->body_length = strlen(response->body);
         return;
     }
-    
-    // Set response type to JSON
-    strcpy(response->content_type, "application/json");
-    
-    // TODO: Call controller to get actual data
-    // For now, just respond with mock data
-    char json_data[1024];
-    snprintf(json_data, sizeof(json_data), "{ \"status\": \"success\", \"data\": { \"id\": %d, \"name\": \"Sample %s %d\" } }", 
-             id, model_name, id);
-             
-    response->body = strdup(json_data);
-    response->body_length = strlen(json_data);
-    
-    // Call the controller function
-    view(model_name, id);
+
+    ControllerResult *result = view(model_name, id);
+    if (result && result->success && result->data) {
+        response->body = strdup((char*)result->data);
+    } else {
+        strcpy(response->status, "404 Not Found");
+        response->body = strdup("{\"error\":\"resource not found\"}");
+    }
+    response->body_length = strlen(response->body);
+    if (result) free_controller_result(result);
 }
 
 // Handler for POST /<resource> (create action)
 void handle_create_route(HttpRequest *request, HttpResponse *response, const char *model_name) {
+    strcpy(response->content_type, "application/json");
+
     char *body = extract_request_body(request);
     if (!body) {
         strcpy(response->status, "400 Bad Request");
-        const char *error_msg = "{ \"status\": \"error\", \"message\": \"Missing request body\" }";
-        response->body = strdup(error_msg);
-        response->body_length = strlen(error_msg);
-        strcpy(response->content_type, "application/json");
+        response->body = strdup("{\"error\":\"missing request body\"}");
+        response->body_length = strlen(response->body);
         return;
     }
-    
-    // Set response type to JSON
-    strcpy(response->content_type, "application/json");
-    strcpy(response->status, "201 Created");
-    
-    // TODO: Call controller to create resource
-    // For now, just respond with mock data
-    char json_data[1024];
-    snprintf(json_data, sizeof(json_data), "{ \"status\": \"success\", \"data\": { \"id\": 123, \"message\": \"Created new %s\" } }", 
-             model_name);
-             
-    response->body = strdup(json_data);
-    response->body_length = strlen(json_data);
-    
-    // Call the controller function
-    create(model_name, body);
-    
+
+    ControllerResult *result = create(model_name, body);
     free(body);
+
+    if (result && result->success && result->data) {
+        strcpy(response->status, "201 Created");
+        response->body = strdup((char*)result->data);
+    } else {
+        strcpy(response->status, "422 Unprocessable Entity");
+        response->body = strdup("{\"error\":\"failed to create resource\"}");
+    }
+    response->body_length = strlen(response->body);
+    if (result) free_controller_result(result);
 }
 
 // Handler for PATCH /<resource>/:id (update action)
 void handle_update_route(HttpRequest *request, HttpResponse *response, const char *model_name) {
     int id = parse_id_from_path(request->path);
+    strcpy(response->content_type, "application/json");
+
     if (id < 0) {
         strcpy(response->status, "400 Bad Request");
-        const char *error_msg = "{ \"status\": \"error\", \"message\": \"Invalid resource ID\" }";
-        response->body = strdup(error_msg);
-        response->body_length = strlen(error_msg);
-        strcpy(response->content_type, "application/json");
+        response->body = strdup("{\"error\":\"invalid resource ID\"}");
+        response->body_length = strlen(response->body);
         return;
     }
-    
+
     char *body = extract_request_body(request);
     if (!body) {
         strcpy(response->status, "400 Bad Request");
-        const char *error_msg = "{ \"status\": \"error\", \"message\": \"Missing request body\" }";
-        response->body = strdup(error_msg);
-        response->body_length = strlen(error_msg);
-        strcpy(response->content_type, "application/json");
+        response->body = strdup("{\"error\":\"missing request body\"}");
+        response->body_length = strlen(response->body);
         return;
     }
-    
-    // Set response type to JSON
-    strcpy(response->content_type, "application/json");
-    
-    // TODO: Call controller to update resource
-    // For now, just respond with mock data
-    char json_data[1024];
-    snprintf(json_data, sizeof(json_data), "{ \"status\": \"success\", \"data\": { \"id\": %d, \"message\": \"Updated %s %d\" } }", 
-             id, model_name, id);
-             
-    response->body = strdup(json_data);
-    response->body_length = strlen(json_data);
-    
-    // Call the controller function
-    update(model_name, id, body);
-    
+
+    ControllerResult *result = update(model_name, id, body);
     free(body);
+
+    if (result && result->success && result->data) {
+        response->body = strdup((char*)result->data);
+    } else {
+        strcpy(response->status, "404 Not Found");
+        response->body = strdup("{\"error\":\"resource not found\"}");
+    }
+    response->body_length = strlen(response->body);
+    if (result) free_controller_result(result);
+}
+
+// Handler for PUT /<resource>/:id (replace action)
+void handle_replace_route(HttpRequest *request, HttpResponse *response, const char *model_name) {
+    int id = parse_id_from_path(request->path);
+    strcpy(response->content_type, "application/json");
+
+    if (id < 0) {
+        strcpy(response->status, "400 Bad Request");
+        response->body = strdup("{\"error\":\"invalid resource ID\"}");
+        response->body_length = strlen(response->body);
+        return;
+    }
+
+    char *body = extract_request_body(request);
+    if (!body) {
+        strcpy(response->status, "400 Bad Request");
+        response->body = strdup("{\"error\":\"missing request body\"}");
+        response->body_length = strlen(response->body);
+        return;
+    }
+
+    ControllerResult *result = replace(model_name, id, body);
+    free(body);
+
+    if (result && result->success && result->data) {
+        response->body = strdup((char*)result->data);
+    } else {
+        strcpy(response->status, "404 Not Found");
+        response->body = strdup("{\"error\":\"resource not found\"}");
+    }
+    response->body_length = strlen(response->body);
+    if (result) free_controller_result(result);
 }
 
 // Handler for DELETE /<resource>/:id (delete action)
 void handle_delete_route(HttpRequest *request, HttpResponse *response, const char *model_name) {
     int id = parse_id_from_path(request->path);
+    strcpy(response->content_type, "application/json");
+
     if (id < 0) {
         strcpy(response->status, "400 Bad Request");
-        const char *error_msg = "{ \"status\": \"error\", \"message\": \"Invalid resource ID\" }";
-        response->body = strdup(error_msg);
-        response->body_length = strlen(error_msg);
-        strcpy(response->content_type, "application/json");
+        response->body = strdup("{\"error\":\"invalid resource ID\"}");
+        response->body_length = strlen(response->body);
         return;
     }
-    
-    // Set response type to JSON
-    strcpy(response->content_type, "application/json");
-    
-    // TODO: Call controller to delete resource
-    // For now, just respond with mock data
-    char json_data[1024];
-    snprintf(json_data, sizeof(json_data), "{ \"status\": \"success\", \"message\": \"Deleted %s with ID %d\" }", 
-             model_name, id);
-             
-    response->body = strdup(json_data);
-    response->body_length = strlen(json_data);
-    
-    // Call the controller function
-    destroy(model_name, id);
+
+    ControllerResult *result = destroy(model_name, id);
+    if (result && result->success) {
+        response->body = strdup("{\"message\":\"resource deleted successfully\"}");
+    } else {
+        strcpy(response->status, "404 Not Found");
+        response->body = strdup("{\"error\":\"resource not found\"}");
+    }
+    response->body_length = strlen(response->body);
+    if (result) free_controller_result(result);
 }
 
 // Closure implementation for HTTP route handlers
@@ -224,11 +229,11 @@ struct DeleteRouteContext {
 };
 
 void index_route_handler(HttpRequest *request, HttpResponse *response) {
-    // Extract the model name from context (stored in route_handlers)
     for (int i = 0; i < handler_count; i++) {
-        char model_path[MAX_MODEL_NAME + 2]; // +2 for '/' and null terminator
-        snprintf(model_path, sizeof(model_path), "/%s", route_handlers[i].model_name);
-        
+        // Index route is plural: /students, /books, etc.
+        char model_path[MAX_MODEL_NAME + 3]; // +3 for '/', 's', null terminator
+        snprintf(model_path, sizeof(model_path), "/%ss", route_handlers[i].model_name);
+
         if (strcmp(request->path, model_path) == 0) {
             handle_index_route(request, response, route_handlers[i].model_name);
             return;
@@ -293,6 +298,24 @@ void update_route_handler(HttpRequest *request, HttpResponse *response) {
     }
     
     // If no match, return 404
+    strcpy(response->status, "404 Not Found");
+    const char *error_msg = "{ \"status\": \"error\", \"message\": \"Resource not found\" }";
+    response->body = strdup(error_msg);
+    response->body_length = strlen(error_msg);
+    strcpy(response->content_type, "application/json");
+}
+
+void replace_route_handler(HttpRequest *request, HttpResponse *response) {
+    for (int i = 0; i < handler_count; i++) {
+        char model_base[MAX_MODEL_NAME + 2];
+        snprintf(model_base, sizeof(model_base), "/%s/", route_handlers[i].model_name);
+
+        if (strncmp(request->path, model_base, strlen(model_base)) == 0) {
+            handle_replace_route(request, response, route_handlers[i].model_name);
+            return;
+        }
+    }
+
     strcpy(response->status, "404 Not Found");
     const char *error_msg = "{ \"status\": \"error\", \"message\": \"Resource not found\" }";
     response->body = strdup(error_msg);
@@ -383,28 +406,150 @@ void generate_routes_code(const char *model_name) {
     
     printf("Creating routes file: %s\n", routes_filename);
 
-    // Write route structure code
+    // Includes
     fprintf(routes_file, "#include <stdio.h>\n");
     fprintf(routes_file, "#include <stdlib.h>\n");
     fprintf(routes_file, "#include <string.h>\n");
-    fprintf(routes_file, "#include \"../controllers/scaffold_controller.h\"\n");
-    fprintf(routes_file, "#include \"../server/http_server.h\"\n");
-    fprintf(routes_file, "#include \"scaffold_routes.h\"\n\n");
+    fprintf(routes_file, "#include <ctype.h>\n");
+    fprintf(routes_file, "#include \"../../../controllers/scaffold_controller.h\"\n");
+    fprintf(routes_file, "#include \"../../../server/http_server.h\"\n");
+    fprintf(routes_file, "#include \"../../../routes/scaffold_routes.h\"\n\n");
 
-    // Write function to register routes
-    fprintf(routes_file, "// Function to register routes for %s\n", model_name);
-    fprintf(routes_file, "void register_%s_routes() {\n", model_name);
-    fprintf(routes_file, "    // Register this model with the route system\n");
-    fprintf(routes_file, "    register_model_routes(\"%s\");\n\n", model_name);
-    fprintf(routes_file, "    // Register routes with the HTTP server\n");
-    fprintf(routes_file, "    // GET /%s - List all %s\n", model_name, model_name);
-    fprintf(routes_file, "    // GET /%s/:id - View a single %s\n", model_name, model_name);
-    fprintf(routes_file, "    // POST /%s - Create a new %s\n", model_name, model_name);
-    fprintf(routes_file, "    // PATCH /%s/:id - Update a %s\n", model_name, model_name);
-    fprintf(routes_file, "    // DELETE /%s/:id - Delete a %s\n", model_name, model_name);
+    // GET /<model> — index handler
+    fprintf(routes_file, "// GET /%s — list all %s resources\n", lowercase_name, lowercase_name);
+    fprintf(routes_file, "static void %s_index_handler(HttpRequest *req, HttpResponse *res) {\n", lowercase_name);
+    fprintf(routes_file, "    (void)req;\n");
+    fprintf(routes_file, "    ControllerResult *result = indx(\"%s\");\n", model_name);
+    fprintf(routes_file, "    res->body = result && result->data ? strdup((char*)result->data) : strdup(\"[]\");\n");
+    fprintf(routes_file, "    res->body_length = strlen(res->body);\n");
+    fprintf(routes_file, "    strcpy(res->content_type, \"application/json\");\n");
+    fprintf(routes_file, "    if (result) free_controller_result(result);\n");
+    fprintf(routes_file, "}\n\n");
+
+    // GET /<model>/:id — view handler
+    fprintf(routes_file, "// GET /%s/:id — view a single %s\n", lowercase_name, lowercase_name);
+    fprintf(routes_file, "static void %s_view_handler(HttpRequest *req, HttpResponse *res) {\n", lowercase_name);
+    fprintf(routes_file, "    int id = parse_id_from_path(req->path);\n");
+    fprintf(routes_file, "    if (id < 0) {\n");
+    fprintf(routes_file, "        strcpy(res->status, \"400 Bad Request\");\n");
+    fprintf(routes_file, "        res->body = strdup(\"{\\\"error\\\":\\\"invalid id\\\"}\");\n");
+    fprintf(routes_file, "        res->body_length = strlen(res->body);\n");
+    fprintf(routes_file, "        strcpy(res->content_type, \"application/json\");\n");
+    fprintf(routes_file, "        return;\n");
+    fprintf(routes_file, "    }\n");
+    fprintf(routes_file, "    ControllerResult *result = view(\"%s\", id);\n", model_name);
+    fprintf(routes_file, "    res->body = result && result->data ? strdup((char*)result->data) : strdup(\"{}\");\n");
+    fprintf(routes_file, "    res->body_length = strlen(res->body);\n");
+    fprintf(routes_file, "    strcpy(res->content_type, \"application/json\");\n");
+    fprintf(routes_file, "    if (!result || !result->success) strcpy(res->status, \"404 Not Found\");\n");
+    fprintf(routes_file, "    if (result) free_controller_result(result);\n");
+    fprintf(routes_file, "}\n\n");
+
+    // POST /<model> — create handler
+    fprintf(routes_file, "// POST /%s — create a new %s\n", lowercase_name, lowercase_name);
+    fprintf(routes_file, "static void %s_create_handler(HttpRequest *req, HttpResponse *res) {\n", lowercase_name);
+    fprintf(routes_file, "    if (!req->body || req->body[0] != '{') {\n");
+    fprintf(routes_file, "        strcpy(res->status, \"400 Bad Request\");\n");
+    fprintf(routes_file, "        res->body = strdup(\"{\\\"error\\\":\\\"missing or invalid body\\\"}\");\n");
+    fprintf(routes_file, "        res->body_length = strlen(res->body);\n");
+    fprintf(routes_file, "        strcpy(res->content_type, \"application/json\");\n");
+    fprintf(routes_file, "        return;\n");
+    fprintf(routes_file, "    }\n");
+    fprintf(routes_file, "    ControllerResult *result = create(\"%s\", req->body);\n", model_name);
+    fprintf(routes_file, "    strcpy(res->status, result && result->success ? \"201 Created\" : \"422 Unprocessable Entity\");\n");
+    fprintf(routes_file, "    res->body = result && result->data ? strdup((char*)result->data) : strdup(\"{}\");\n");
+    fprintf(routes_file, "    res->body_length = strlen(res->body);\n");
+    fprintf(routes_file, "    strcpy(res->content_type, \"application/json\");\n");
+    fprintf(routes_file, "    if (result) free_controller_result(result);\n");
+    fprintf(routes_file, "}\n\n");
+
+    // PATCH /<model>/:id — update handler
+    fprintf(routes_file, "// PATCH /%s/:id — update a %s\n", lowercase_name, lowercase_name);
+    fprintf(routes_file, "static void %s_update_handler(HttpRequest *req, HttpResponse *res) {\n", lowercase_name);
+    fprintf(routes_file, "    int id = parse_id_from_path(req->path);\n");
+    fprintf(routes_file, "    if (id < 0) {\n");
+    fprintf(routes_file, "        strcpy(res->status, \"400 Bad Request\");\n");
+    fprintf(routes_file, "        res->body = strdup(\"{\\\"error\\\":\\\"invalid id\\\"}\");\n");
+    fprintf(routes_file, "        res->body_length = strlen(res->body);\n");
+    fprintf(routes_file, "        strcpy(res->content_type, \"application/json\");\n");
+    fprintf(routes_file, "        return;\n");
+    fprintf(routes_file, "    }\n");
+    fprintf(routes_file, "    if (!req->body || req->body[0] != '{') {\n");
+    fprintf(routes_file, "        strcpy(res->status, \"400 Bad Request\");\n");
+    fprintf(routes_file, "        res->body = strdup(\"{\\\"error\\\":\\\"missing or invalid body\\\"}\");\n");
+    fprintf(routes_file, "        res->body_length = strlen(res->body);\n");
+    fprintf(routes_file, "        strcpy(res->content_type, \"application/json\");\n");
+    fprintf(routes_file, "        return;\n");
+    fprintf(routes_file, "    }\n");
+    fprintf(routes_file, "    ControllerResult *result = update(\"%s\", id, req->body);\n", model_name);
+    fprintf(routes_file, "    if (!result || !result->success) strcpy(res->status, \"404 Not Found\");\n");
+    fprintf(routes_file, "    res->body = result && result->data ? strdup((char*)result->data) : strdup(\"{}\");\n");
+    fprintf(routes_file, "    res->body_length = strlen(res->body);\n");
+    fprintf(routes_file, "    strcpy(res->content_type, \"application/json\");\n");
+    fprintf(routes_file, "    if (result) free_controller_result(result);\n");
+    fprintf(routes_file, "}\n\n");
+
+    
+    // PUT /<model>/:id — replace handler
+    fprintf(routes_file, "// PUT /%s/:id — fully replace a %s\n", lowercase_name, lowercase_name);
+    fprintf(routes_file, "static void %s_replace_handler(HttpRequest *req, HttpResponse *res) {\n", lowercase_name);
+    fprintf(routes_file, "    int id = parse_id_from_path(req->path);\n");
+    fprintf(routes_file, "    if (id < 0) {\n");
+    fprintf(routes_file, "        strcpy(res->status, \"400 Bad Request\");\n");
+    fprintf(routes_file, "        res->body = strdup(\"{\\\"error\\\":\\\"invalid id\\\"}\");\n");
+    fprintf(routes_file, "        res->body_length = strlen(res->body);\n");
+    fprintf(routes_file, "        strcpy(res->content_type, \"application/json\");\n");
+    fprintf(routes_file, "        return;\n");
+    fprintf(routes_file, "    }\n");
+    fprintf(routes_file, "    if (!req->body || req->body[0] != '{') {\n");
+    fprintf(routes_file, "        strcpy(res->status, \"400 Bad Request\");\n");
+    fprintf(routes_file, "        res->body = strdup(\"{\\\"error\\\":\\\"missing or invalid body\\\"}\");\n");
+    fprintf(routes_file, "        res->body_length = strlen(res->body);\n");
+    fprintf(routes_file, "        strcpy(res->content_type, \"application/json\");\n");
+    fprintf(routes_file, "        return;\n");
+    fprintf(routes_file, "    }\n");
+    fprintf(routes_file, "    ControllerResult *result = replace(\"%s\", id, req->body);\n", model_name);
+    fprintf(routes_file, "    if (!result || !result->success) strcpy(res->status, \"404 Not Found\");\n");
+    fprintf(routes_file, "    res->body = result && result->data ? strdup((char*)result->data) : strdup(\"{}\");\n");
+    fprintf(routes_file, "    res->body_length = strlen(res->body);\n");
+    fprintf(routes_file, "    strcpy(res->content_type, \"application/json\");\n");
+    fprintf(routes_file, "    if (result) free_controller_result(result);\n");
+    fprintf(routes_file, "}\n\n");
+    
+    // DELETE /<model>/:id — destroy handler
+    fprintf(routes_file, "// DELETE /%s/:id — delete a %s\n", lowercase_name, lowercase_name);
+    fprintf(routes_file, "static void %s_destroy_handler(HttpRequest *req, HttpResponse *res) {\n", lowercase_name);
+    fprintf(routes_file, "    int id = parse_id_from_path(req->path);\n");
+    fprintf(routes_file, "    if (id < 0) {\n");
+    fprintf(routes_file, "        strcpy(res->status, \"400 Bad Request\");\n");
+    fprintf(routes_file, "        res->body = strdup(\"{\\\"error\\\":\\\"invalid id\\\"}\");\n");
+    fprintf(routes_file, "        res->body_length = strlen(res->body);\n");
+    fprintf(routes_file, "        strcpy(res->content_type, \"application/json\");\n");
+    fprintf(routes_file, "        return;\n");
+    fprintf(routes_file, "    }\n");
+    fprintf(routes_file, "    ControllerResult *result = destroy(\"%s\", id);\n", model_name);
+    fprintf(routes_file, "    if (!result || !result->success) strcpy(res->status, \"404 Not Found\");\n");
+    fprintf(routes_file, "    res->body = result && result->data ? strdup((char*)result->data) : strdup(\"{}\");\n");
+    fprintf(routes_file, "    res->body_length = strlen(res->body);\n");
+    fprintf(routes_file, "    strcpy(res->content_type, \"application/json\");\n");
+    fprintf(routes_file, "    if (result) free_controller_result(result);\n");
+    fprintf(routes_file, "}\n\n");
+
+    // Registration function
+    fprintf(routes_file, "// Call this at startup to register all %s routes\n", lowercase_name);
+    fprintf(routes_file, "void register_%s_routes() {\n", lowercase_name);
+    fprintf(routes_file, "    char index_path[128], id_path[128];\n");
+    // Index route is plural: /students, /books, etc.
+    fprintf(routes_file, "    snprintf(index_path, sizeof(index_path), \"/%ss\");\n", lowercase_name);
+    fprintf(routes_file, "    snprintf(id_path,    sizeof(id_path),    \"/%s/:id\");\n", lowercase_name);
+    fprintf(routes_file, "    register_route(\"GET\",    index_path, %s_index_handler);\n", lowercase_name);
+    fprintf(routes_file, "    register_route(\"GET\",    id_path,    %s_view_handler);\n", lowercase_name);
+    fprintf(routes_file, "    register_route(\"POST\",   index_path, %s_create_handler);\n", lowercase_name);
+    fprintf(routes_file, "    register_route(\"PATCH\",  id_path,    %s_update_handler);\n", lowercase_name);
+    fprintf(routes_file, "    register_route(\"PUT\",    id_path,    %s_replace_handler);\n", lowercase_name);
+    fprintf(routes_file, "    register_route(\"DELETE\", id_path,    %s_destroy_handler);\n", lowercase_name);
     fprintf(routes_file, "}\n");
 
-    // Close the file
     fclose(routes_file);
 
     printf("Routes code generated for %s.\n", model_name);
@@ -417,5 +562,6 @@ void setup_routes() {
     register_route("GET", "/*/*", view_route_handler); // Wildcard for GET view routes
     register_route("POST", "/*", create_route_handler); // Wildcard for POST create routes
     register_route("PATCH", "/*/*", update_route_handler); // Wildcard for PATCH update routes
+    register_route("PUT",    "/*/*", replace_route_handler); // Wildcard for PUT replace routes
     register_route("DELETE", "/*/*", delete_route_handler); // Wildcard for DELETE destroy routes
 }

@@ -11,6 +11,7 @@
 #include "server/http_server.h"
 #include "database/application/orm.h"
 #include "database/logical/database.h"
+#include "database/rdbms.h"
 #include "utils/path_utils.h"
 
 volatile sig_atomic_t running = 1;
@@ -61,10 +62,9 @@ void scaffold_resource(const char* resource_name, const char* attributes[], cons
 int main() {
     signal(SIGINT, handle_shutdown);
     
-    // Initialize the database
+    // Initialize the database via the RDBMS API layer
     printf("Initializing database...\n");
-    Database *db = initialize_database("cerver_db");
-    if (!db) {
+    if (db_system_init("cerver_db") != 0) {
         fprintf(stderr, "Error: Failed to initialize database. Exiting.\n");
         return 1;
     }
@@ -72,10 +72,6 @@ int main() {
     // Initialize model registry without default models
     printf("Initializing model system...\n");
     register_all_models();
-    
-    // Initialize the router system
-    printf("Setting up routes...\n");
-    setup_routes();
     
     // Resource scaffolding - the main purpose of this application
     printf("\n=== Resource Scaffolding ===\n");
@@ -109,16 +105,23 @@ int main() {
     const char *attributes[100], *types[100];
     int attr_count = 0;
 
-    char *token = strtok(input, ",");
+    char *saveptr_outer, *saveptr_inner;
+    char *token = strtok_r(input, ",", &saveptr_outer);
     while (token) {
-        char *attribute = strtok(token, ":");
-        char *type = strtok(NULL, ":");
+        // Trim leading whitespace from token before splitting on ':'
+        while (*token == ' ') token++;
+
+        char *attribute = strtok_r(token, ":", &saveptr_inner);
+        char *type      = strtok_r(NULL,  ":", &saveptr_inner);
         if (attribute && type) {
+            // Trim whitespace from both sides
+            while (*attribute == ' ') attribute++;
+            while (*type == ' ') type++;
             attributes[attr_count] = strdup(attribute);
-            types[attr_count] = strdup(type);
+            types[attr_count]      = strdup(type);
             attr_count++;
         }
-        token = strtok(NULL, ",");
+        token = strtok_r(NULL, ",", &saveptr_outer);
     }
     
     if (attr_count == 0) {
@@ -135,6 +138,10 @@ int main() {
         
         // Scaffold the resource
         scaffold_resource(resource_name, attributes, types, attr_count);
+
+        // Now that the model is registered in route_handlers, wire up the HTTP routes
+        printf("Setting up routes...\n");
+        setup_routes();
         
         // Resource creation directory path
         char resource_dir[PATH_MAX];
@@ -174,8 +181,8 @@ int main() {
     printf("Server is now running. Press Ctrl+C to stop.\n");
     start_server("3000");
     
-    // Clean up database resources (in case we reach here)
-    destroy_database(db);
+    // Clean up database resources
+    db_system_shutdown();
 
     return 0;
 }

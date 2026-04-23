@@ -29,6 +29,7 @@ ControllerResult* indx(const char *model_name);
 ControllerResult* view(const char *model_name, int id);
 ControllerResult* create(const char *model_name, char *data);
 ControllerResult* update(const char *model_name, int id, char *data);
+ControllerResult* replace(const char *model_name, int id, char *data);
 ControllerResult* destroy(const char *model_name, int id);
 
 // JSON parsing utilities
